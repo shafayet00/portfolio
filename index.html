@@ -49,6 +49,10 @@ footer{border-top:1px solid var(--line);padding:28px 0;text-align:center;color:v
 @keyframes photoFloat{0%,100%{transform:translateY(0) rotate(2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
 @keyframes skillLoad{from{transform:scaleX(0)}to{transform:scaleX(1)}}@keyframes imageMotion{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.035) translateY(-5px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style><style id="profile-image-motion-fix">
+.hero-photo{animation:imageMotion 6s ease-in-out 1.15s infinite!important;transform-origin:center;will-change:transform}
+.hero-photo-frame:hover .hero-photo{animation-play-state:paused!important;transform:scale(1.045)!important;filter:grayscale(0)}
+@keyframes imageMotion{0%,100%{transform:scale(1) translateY(0)}50%{transform:scale(1.035) translateY(-5px)}}
 </style></head>
 <body>
 <nav><div class="wrap nav"><a class="logo" href="#top">Shah Md. Shafayet Ullah</a><div class="links"><a href="#about">About</a><a href="#education">Education</a><a href="#skills">Skills</a><a href="#projects">Projects</a><a href="#contact">Contact</a></div><button class="toggle" id="toggle">☀</button></div></nav>

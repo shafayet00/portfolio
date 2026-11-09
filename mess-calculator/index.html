@@ -59,7 +59,7 @@ body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;col
 #authScreen{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at 15% 10%,rgba(59,130,246,.12),transparent 30%),#f8fafc}
 #authScreen.show{display:flex}
 .auth-card{width:min(440px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:28px;box-shadow:0 25px 80px rgba(15,23,42,.12)}
-.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.auth-logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#0f172a,#334155);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}.auth-card h1{margin:0;font-size:24px}.auth-card p{color:#64748b;font-size:12px;line-height:1.6}.auth-card label{margin-top:14px}.auth-error{display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:11px}.auth-error.show{display:block}.auth-loading{display:none;font-size:11px;color:#64748b;margin-top:10px}.auth-loading.show{display:block}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.auth-logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#0f172a,#334155);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}.auth-card h1{margin:0;font-size:24px}.auth-card p{color:#64748b;font-size:12px;line-height:1.6}.auth-card label{margin-top:14px}.auth-error{display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:11px}.auth-error.show{display:block}.auth-loading{display:none;font-size:11px;color:#64748b;margin-top:10px}.auth-loading.show{display:block}.auth-switch{margin-top:16px;text-align:center;font-size:12px}.auth-switch button{border:0;background:none;color:#2563eb;font-weight:800;cursor:pointer}.auth-note{margin-top:12px;padding:10px 12px;border-radius:10px;background:#f1f5f9;color:#475569;font-size:11px;line-height:1.5}
 .role-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#eff6ff;color:#2563eb;font-size:10px;font-weight:800}.role-badge.admin{background:#fef3c7;color:#92400e}.role-badge.manager{background:#ecfdf5;color:#047857}.role-badge.member{background:#f1f5f9;color:#475569}
 .online-status{font-size:10px;color:#64748b;margin-left:8px}.online-status.ok{color:#16a34a}.online-status.bad{color:#dc2626}
 .user-actions{display:flex;align-items:center;gap:8px}.logout-btn{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:8px 11px;font-size:11px;font-weight:800}.logout-btn:hover{border-color:#cbd5e1;background:#f8fafc}
@@ -71,13 +71,25 @@ body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;col
 <div id="authScreen">
   <div class="auth-card">
     <div class="auth-brand"><div class="auth-logo">M</div><div><h1>Mess Calculator</h1><div class="muted">Secure online mess management</div></div></div>
-    <p>Sign in with your mess account. Admin and Manager can edit according to their permissions; Members have view-only access.</p>
+    <p id="authIntro">Sign in with your mess account. Admin and Manager can edit according to their permissions; Members have view-only access.</p>
     <form id="loginForm">
       <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
       <div id="authError" class="auth-error"></div>
       <div id="authLoading" class="auth-loading">Signing in…</div>
       <button class="primary-btn" style="width:100%;margin-top:16px">Sign in</button>
+      <div class="auth-switch">New member? <button type="button" id="showJoinBtn">Join this mess</button></div>
+    </form>
+    <form id="joinForm" style="display:none">
+      <label>Full name<input name="name" required placeholder="Your name"></label>
+      <label>Email<input name="email" type="email" required placeholder="you@example.com"></label>
+      <label>Password<input name="password" type="password" minlength="6" required placeholder="At least 6 characters"></label>
+      <label>Confirm password<input name="confirmPassword" type="password" minlength="6" required placeholder="Re-enter password"></label>
+      <div id="joinError" class="auth-error"></div>
+      <div id="joinLoading" class="auth-loading">Creating your mess account…</div>
+      <button class="primary-btn" style="width:100%;margin-top:16px">Create account & join</button>
+      <div class="auth-switch">Already a member? <button type="button" id="showLoginBtn">Back to sign in</button></div>
+      <div class="auth-note">Use your own name, email and password. After joining, your account is automatically added to this mess as a Member.</div>
     </form>
   </div>
 </div>
@@ -336,13 +348,7 @@ async function getMyRole(){
 async function seedMembersIfEmpty(){
   const {data,error}=await supabaseClient.from('members').select('id,name,email,auth_user_id').order('created_at',{ascending:true});
   if(error) throw error;
-  if(data.length) return data;
-  if(!isAdmin()) return [];
-  const seed=[['Shafayet',''],['Ridoy',''],['Sakib',''],['Rahim',''],['Fahim',''],['Nayeem','']];
-  const rows=seed.map(([name,email])=>({name,email:email||null}));
-  const {data:created,error:ce}=await supabaseClient.from('members').insert(rows).select('id,name,email,auth_user_id');
-  if(ce) throw ce;
-  return created||[];
+  return data||[];
 }
 async function loadCloudState(){
   if(!supabaseClient) throw new Error('Add your Supabase anon key to index.html first.');
@@ -715,7 +721,7 @@ function setup(){
      addNotification('Member deleted',`${m.name} was removed from the mess`);
      recalcAndSave();toast('Member deleted',m.name);return;
    }
-   if(e.target.id==='addMemberBtn'){if(!isAdmin())return toast('Admin only','Only the Admin can add members.','error');const n=prompt('Member name');if(n?.trim()){state.members.push({id:crypto.randomUUID(),name:n.trim(),email:null,auth_user_id:null});addNotification('Member added',`${n.trim()} joined the mess`);save();toast('Member added',n.trim());}}
+   if(e.target.id==='addMemberBtn'){if(!isAdmin())return toast('Admin only','New members join using the public Join link.','error');toast('Member signup','Give the member the website link and ask them to choose “Join this mess”.','info');}
    if(e.target.id==='exportBtn'){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mess-calculator-data.json';a.click();toast('Data exported','Your current mess data was exported.','info');}
    if(e.target.id==='openDefaultMenu')editDefaultMeal();
    if(e.target.id==='themeToggle'||e.target.id==='themeToggleSettings'){
@@ -856,6 +862,10 @@ function setup(){
 }
 setup();
 $('#loginForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);$('#authError').classList.remove('show');$('#authLoading').classList.add('show');try{if(!supabaseClient)throw new Error('Supabase anon key is not configured.');const {error}=await supabaseClient.auth.signInWithPassword({email:String(f.get('email')),password:String(f.get('password'))});if(error)throw error;await startOnlineApp();}catch(err){$('#authError').textContent=err.message||'Login failed.';$('#authError').classList.add('show');}finally{$('#authLoading').classList.remove('show');}});
+$('#showJoinBtn')?.addEventListener('click',()=>{$('#loginForm').style.display='none';$('#joinForm').style.display='block';$('#authIntro').textContent='Create your account with your own name, email and password. You will join this mess as a Member.';});
+$('#showLoginBtn')?.addEventListener('click',()=>{$('#joinForm').style.display='none';$('#loginForm').style.display='block';$('#authIntro').textContent='Sign in with your mess account. Admin and Manager can edit according to their permissions; Members have view-only access.';});
+$('#joinForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target),name=String(f.get('name')||'').trim(),email=String(f.get('email')||'').trim().toLowerCase(),password=String(f.get('password')||''),confirmPassword=String(f.get('confirmPassword')||'');$('#joinError').classList.remove('show');$('#joinLoading').classList.add('show');try{if(!supabaseClient)throw new Error('Supabase is not configured.');if(password!==confirmPassword)throw new Error('Passwords do not match.');if(password.length<6)throw new Error('Password must be at least 6 characters.');const {data,error}=await supabaseClient.auth.signUp({email,password,options:{data:{full_name:name}}});if(error)throw error;if(data.session){toast('Welcome!','Your account was created and you joined the mess.','info');await startOnlineApp();}else{e.target.reset();$('#joinError').textContent='Account created. Please verify your email, then sign in.';$('#joinError').classList.add('show');}}catch(err){$('#joinError').textContent=err.message||'Could not create account.';$('#joinError').classList.add('show');}finally{$('#joinLoading').classList.remove('show');}});
+
 $('#logoutBtn')?.addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();currentUser=null;currentRole='member';document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');});
 if(supabaseClient){supabaseClient.auth.onAuthStateChange(async (_event,session)=>{currentUser=session?.user||null;if(session){try{await loadCloudState();await setupRealtimeSync();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);}}else{if(realtimeChannel){try{await supabaseClient.removeChannel(realtimeChannel);}catch(_){ }realtimeChannel=null;}document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');}});}
 startOnlineApp();

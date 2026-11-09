@@ -54,10 +54,33 @@ body[data-theme="bw"]{--bg:#f4f4f5;--card:#fff;--ink:#09090b;--muted:#52525b;--l
 body[data-theme="dark"] .share-summary{background:#0f172a;border-color:#334155;color:#cbd5e1}body[data-theme="dark"] .share-summary strong{color:#f8fafc}
 body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;color:#27272a}
 @media(max-width:900px){.stats{grid-template-columns:repeat(2,1fr)}.hero,.dashboard-grid{grid-template-columns:1fr}.member-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* ONLINE AUTH / ROLE UI */
+#authScreen{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;background:radial-gradient(circle at 15% 10%,rgba(59,130,246,.12),transparent 30%),#f8fafc}
+#authScreen.show{display:flex}
+.auth-card{width:min(440px,100%);background:#fff;border:1px solid #e5e7eb;border-radius:24px;padding:28px;box-shadow:0 25px 80px rgba(15,23,42,.12)}
+.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:22px}.auth-logo{width:46px;height:46px;border-radius:15px;background:linear-gradient(145deg,#0f172a,#334155);color:#fff;display:grid;place-items:center;font-weight:900;font-size:22px}.auth-card h1{margin:0;font-size:24px}.auth-card p{color:#64748b;font-size:12px;line-height:1.6}.auth-card label{margin-top:14px}.auth-error{display:none;margin-top:12px;padding:10px 12px;border-radius:10px;background:#fef2f2;color:#b91c1c;font-size:11px}.auth-error.show{display:block}.auth-loading{display:none;font-size:11px;color:#64748b;margin-top:10px}.auth-loading.show{display:block}
+.role-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:#eff6ff;color:#2563eb;font-size:10px;font-weight:800}.role-badge.admin{background:#fef3c7;color:#92400e}.role-badge.manager{background:#ecfdf5;color:#047857}.role-badge.member{background:#f1f5f9;color:#475569}
+.online-status{font-size:10px;color:#64748b;margin-left:8px}.online-status.ok{color:#16a34a}.online-status.bad{color:#dc2626}
+.user-actions{display:flex;align-items:center;gap:8px}.logout-btn{border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:8px 11px;font-size:11px;font-weight:800}.logout-btn:hover{border-color:#cbd5e1;background:#f8fafc}
+@media(max-width:760px){.auth-card{padding:22px}}
 </style>
   <title>Mess Calculator</title>
 </head>
 <body>
+<div id="authScreen">
+  <div class="auth-card">
+    <div class="auth-brand"><div class="auth-logo">M</div><div><h1>Mess Calculator</h1><div class="muted">Secure online mess management</div></div></div>
+    <p>Sign in with your mess account. Admin and Manager can edit according to their permissions; Members have view-only access.</p>
+    <form id="loginForm">
+      <label>Email<input name="email" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="••••••••"></label>
+      <div id="authError" class="auth-error"></div>
+      <div id="authLoading" class="auth-loading">Signing in…</div>
+      <button class="primary-btn" style="width:100%;margin-top:16px">Sign in</button>
+    </form>
+  </div>
+</div>
 <div class="app-shell">
   <aside class="sidebar" id="sidebar">
     <div class="brand">
@@ -75,10 +98,10 @@ body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;col
       <button class="nav-item" data-view="settings"><span class="nav-icon">⚙</span><span>Mess Settings</span></button>
       <button class="nav-item action-item" id="themeToggle"><span class="nav-icon">◐</span><span>Dark Theme</span></button>
       <div class="nav-divider"></div>
-      <button class="nav-item action-item" id="changeManagerBtn"><span class="nav-icon">♙</span><span>Change Manager</span></button>
-      <button class="nav-item action-item" id="newMonthBtn"><span class="nav-icon">＋</span><span>Start New Month</span></button>
+      <button class="nav-item action-item admin-only" id="changeManagerBtn"><span class="nav-icon">♙</span><span>Change Manager</span></button>
+      <button class="nav-item action-item manager-only" id="newMonthBtn"><span class="nav-icon">＋</span><span>Start New Month</span></button>
     </nav>
-    <div class="sidebar-footer"><span class="status-dot"></span> Data saved locally</div>
+    <div class="sidebar-footer"><span class="status-dot"></span> <span id="storageStatus">Cloud sync</span></div>
   </aside>
   <div id="toastStack" class="toast-stack" aria-live="polite"></div>
 
@@ -90,8 +113,9 @@ body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;col
         <h2 id="pageTitle">Dashboard</h2>
       </div>
       <div class="top-actions">
+        <div class="user-actions"><span id="roleBadge" class="role-badge">Checking access…</span><span id="onlineStatus" class="online-status">Connecting…</span><button class="logout-btn" id="logoutBtn">Log out</button></div>
         <button class="secondary-btn" id="exportBtn">Export Data</button>
-        <button class="primary-btn" data-open-modal="expenseModal">+ Add Expense</button>
+        <button class="primary-btn manager-only" data-open-modal="expenseModal">+ Add Expense</button>
       </div>
     </header>
 
@@ -204,6 +228,7 @@ body[data-theme="bw"] .share-summary{background:#fafafa;border-color:#a1a1aa;col
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const KEY='mess-calculator-v8';
 const defaultState={
@@ -223,7 +248,13 @@ function migrate(raw){
   s.meals=uniqueById(s.meals); s.expenses=uniqueById(s.expenses); s.fundEntries=uniqueById(s.fundEntries);
   return s;
 }
-let state=migrate(JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('mess-calculator-v7')||localStorage.getItem('mess-calculator-v3')||localStorage.getItem('mess-calculator-v2')||localStorage.getItem('mess-calculator-v1')||'null'));
+const SUPABASE_URL='https://imrgayohubztxbggdpti.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_UFlHlhrxcOyh63njVwDwZQ_qEivlOvp';
+const supabaseClient=(window.supabase&&SUPABASE_URL&&SUPABASE_ANON_KEY)?window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY):null;
+let currentUser=null;
+let currentRole='member';
+let currentMemberId=null;
+let state=migrate(JSON.parse(localStorage.getItem(KEY)||'null'));
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const money=n=>`৳${Number(n||0).toLocaleString('en-BD',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -232,8 +263,134 @@ const currentMonth=()=>state.mess.month;
 const monthName=month=>new Date(month+'-01T00:00:00').toLocaleDateString('en-US',{month:'long',year:'numeric'});
 const dateLabel=d=>new Date(d+'T00:00:00').toLocaleDateString('en-US',{day:'2-digit',month:'short',year:'numeric'});
 let renderQueued=false;
-function save(){localStorage.setItem(KEY,JSON.stringify(state)); if(!renderQueued){renderQueued=true; requestAnimationFrame(()=>{renderQueued=false; render();});}}
-function addNotification(action,details){state.notifications ||= []; state.notifications.unshift({id:'n'+Date.now()+Math.random().toString(36).slice(2,6),month:currentMonth(),date:today(),time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),action,details}); state.notifications=state.notifications.slice(0,150);}
+function save(){
+  localStorage.setItem(KEY,JSON.stringify(state));
+  if(!renderQueued){renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;render();});}
+  if(canEdit()) syncCurrentState().catch(err=>setCloudStatus('Sync failed',false));
+}
+
+function canEdit(){return currentRole==='admin'||currentRole==='manager';}
+function isAdmin(){return currentRole==='admin';}
+function isManager(){return currentRole==='manager'||currentRole==='admin';}
+function setCloudStatus(text,ok=true){const el=$('#onlineStatus');if(el){el.textContent=text;el.className='online-status '+(ok?'ok':'bad');}const st=$('#storageStatus');if(st)st.textContent=ok?'Cloud synced':'Cloud sync issue';}
+function setRoleUI(){
+  const badge=$('#roleBadge');if(badge){badge.textContent=currentRole==='admin'?'👑 Admin':currentRole==='manager'?'🛠️ Manager':'👤 Member';badge.className='role-badge '+currentRole;}
+  $$('.admin-only').forEach(el=>el.style.display=isAdmin()?'':'none');
+  $$('.manager-only').forEach(el=>el.style.display=isManager()?'':'none');
+  if($('#changeManagerBtn')) $('#changeManagerBtn').style.display=isAdmin()?'':'none';
+}
+function hideEditControlsForRole(){
+  const editableSelectors=['[data-open-modal="expenseModal"]','[data-open-modal="mealModal"]','#fundDepositBtn','#fundWithdrawBtn','#fundTransferBtn','#addMemberBtn','#settingsManager','#renameMess','#editDefaultMeal','#newMonthBtn','#changeManagerBtn','#managerSaveBtn','[data-edit-meal]','[data-edit-expense]','[data-edit-fund]','[data-delete-meal]','[data-delete-expense]','[data-delete-fund]','[data-delete-member]'];
+  editableSelectors.forEach(sel=>$$ (sel).forEach(el=>{el.style.display=canEdit()?'':'none';}));
+}
+async function ensureOnline(){
+  if(!supabaseClient) throw new Error('Supabase anon key is not configured in index.html.');
+  const {data:{session},error}=await supabaseClient.auth.getSession();
+  if(error) throw error;
+  currentUser=session?.user||null;
+  if(!currentUser){$('#authScreen')?.classList.add('show');$('.app-shell')?.style.setProperty('display','none');return false;}
+  return true;
+}
+async function getMyRole(){
+  const {data,error}=await supabaseClient.from('user_roles').select('role,member_id').eq('user_id',currentUser.id).maybeSingle();
+  if(error) throw error;
+  if(!data) throw new Error('Your account has no role yet. Please ask the Admin to assign your role.');
+  currentRole=data.role;currentMemberId=data.member_id||null;setRoleUI();return data;
+}
+async function seedMembersIfEmpty(){
+  const {data,error}=await supabaseClient.from('members').select('id,name,email,auth_user_id').order('created_at',{ascending:true});
+  if(error) throw error;
+  if(data.length) return data;
+  if(!isAdmin()) return [];
+  const seed=[['Shafayet',''],['Ridoy',''],['Sakib',''],['Rahim',''],['Fahim',''],['Nayeem','']];
+  const rows=seed.map(([name,email])=>({name,email:email||null}));
+  const {data:created,error:ce}=await supabaseClient.from('members').insert(rows).select('id,name,email,auth_user_id');
+  if(ce) throw ce;
+  return created||[];
+}
+async function loadCloudState(){
+  if(!supabaseClient) throw new Error('Add your Supabase anon key to index.html first.');
+  const ok=await ensureOnline();if(!ok)return false;
+  await getMyRole();
+  const members=await seedMembersIfEmpty();
+  const {data:months,error:me}=await supabaseClient.from('months').select('*').order('start_date',{ascending:false});
+  if(me) throw me;
+  let monthRow=months?.find(m=>m.is_active)||months?.[0];
+  if(!monthRow&&isManager()){
+    const month=state.mess.month||new Date().toISOString().slice(0,7);
+    const {data:m,error:e}=await supabaseClient.from('months').insert({name:monthName(month),start_date:month+'-01',opening_balance:0,is_active:true}).select().single();
+    if(e) throw e;monthRow=m;
+  }
+  if(!monthRow) throw new Error('No active month exists yet. Admin/Manager must create the first month.');
+  const month=monthRow.start_date.slice(0,7); state.mess.month=month;
+  state.members=members;
+  const {data:settings}=await supabaseClient.from('mess_settings').select('*').eq('month_id',monthRow.id).maybeSingle();
+  state.mess.managerId=settings?.manager_member_id||state.members[0]?.id||null;
+  const {data:menu}=await supabaseClient.from('default_menu').select('*').eq('month_id',monthRow.id).maybeSingle();
+  if(menu) state.mess.defaultMeals={breakfast:Number(menu.breakfast||0),lunch:Number(menu.lunch||0),dinner:Number(menu.dinner||0)};
+  const [mealRes,expRes,shareRes,depRes,wRes,trRes,nRes]=await Promise.all([
+    supabaseClient.from('meals').select('*').eq('month_id',monthRow.id),
+    supabaseClient.from('expenses').select('*').eq('month_id',monthRow.id),
+    supabaseClient.from('expense_shares').select('*'),
+    supabaseClient.from('deposits').select('*').eq('month_id',monthRow.id),
+    supabaseClient.from('withdrawals').select('*').eq('month_id',monthRow.id),
+    supabaseClient.from('transfers').select('*').eq('month_id',monthRow.id),
+    supabaseClient.from('notifications').select('*').eq('month_id',monthRow.id).order('created_at',{ascending:false}).limit(150)
+  ]);
+  for(const r of [mealRes,expRes,shareRes,depRes,wRes,trRes,nRes]) if(r.error) throw r.error;
+  const mealsByDate={};(mealRes.data||[]).forEach(r=>{mealsByDate[r.meal_date] ||= {id:r.id,month,date:r.meal_date,counts:{}};mealsByDate[r.meal_date].counts[r.member_id]=Number(r.total_meal||0);});
+  state.meals=Object.values(mealsByDate);
+  const shares=(shareRes.data||[]).filter(s=>(expRes.data||[]).some(e=>e.id===s.expense_id));
+  state.expenses=(expRes.data||[]).map(e=>({id:e.id,month,date:e.expense_date,name:e.title,amount:Number(e.amount),category:e.category,paidBy:e.payer_member_id,source:e.payment_source==='personal_money'?'personal':'fund',sharedBy:shares.filter(s=>s.expense_id===e.id).map(s=>s.member_id)}));
+  state.fundEntries=[...(depRes.data||[]).map(e=>({id:e.id,month,type:'deposit',member:e.member_id,amount:Number(e.amount),date:e.deposit_date,note:e.note||''})),...(wRes.data||[]).map(e=>({id:e.id,month,type:'withdrawal',member:e.member_id,amount:Number(e.amount),date:e.withdrawal_date,note:e.reason||''})),...(trRes.data||[]).map(e=>({id:e.id,month,type:'transfer',fromMember:e.from_member_id,toMember:e.to_member_id,amount:Number(e.amount),date:e.transfer_date,note:e.note||''}))];
+  state.notifications=(nRes.data||[]).map(n=>({id:n.id,month,date:n.created_at.slice(0,10),time:new Date(n.created_at).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),action:n.type,details:n.message}));
+  localStorage.setItem(KEY,JSON.stringify(state));
+  setCloudStatus('Cloud synced',true);setRoleUI();render();return true;
+}
+async function syncCurrentState(){
+  if(!supabaseClient||!currentUser||!canEdit())return;
+  const {data:monthRow,error:mr}=await supabaseClient.from('months').select('*').eq('start_date',currentMonth()+'-01').maybeSingle();
+  if(mr) throw mr;if(!monthRow) return;
+  // Admin-only member sync
+  if(isAdmin()){
+    for(const m of state.members){
+      const payload={id:m.id,name:m.name,email:m.email||null,auth_user_id:m.auth_user_id||null};
+      const {error}=await supabaseClient.from('members').upsert(payload,{onConflict:'id'});if(error)throw error;
+    }
+  }
+  // Replace current-month meal rows
+  const {error:md}=await supabaseClient.from('meals').delete().eq('month_id',monthRow.id);if(md)throw md;
+  const mealRows=[];state.meals.filter(x=>x.month===currentMonth()).forEach(r=>state.members.forEach(m=>{mealRows.push({id:crypto.randomUUID(),month_id:monthRow.id,member_id:m.id,meal_date:r.date,breakfast:Number(r.counts?.[m.id]||0),lunch:0,dinner:0});}));
+  if(mealRows.length){const {error}=await supabaseClient.from('meals').insert(mealRows);if(error)throw error;}
+  // Replace current-month expenses + shares
+  const oldExpIds=state.expenses.filter(e=>e.month===currentMonth()).map(e=>e.id).filter(id=>/^[0-9a-f-]{36}$/i.test(id));
+  if(oldExpIds.length){const {error}=await supabaseClient.from('expense_shares').delete().in('expense_id',oldExpIds);if(error)throw error;}
+  const {error:ed}=await supabaseClient.from('expenses').delete().eq('month_id',monthRow.id);if(ed)throw ed;
+  const expRows=state.expenses.filter(e=>e.month===currentMonth()).map(e=>({id:/^[0-9a-f-]{36}$/i.test(e.id)?e.id:crypto.randomUUID(),month_id:monthRow.id,title:e.name,category:e.category,amount:e.amount,payment_source:e.source==='personal'?'personal_money':'mess_fund',payer_member_id:e.paidBy||null,expense_date:e.date,note:null}));
+  if(expRows.length){const {error}=await supabaseClient.from('expenses').insert(expRows);if(error)throw error;}
+  const shareRows=[];state.expenses.filter(e=>e.month===currentMonth()).forEach((e,i)=>{const eid=expRows[i]?.id;(e.sharedBy||[]).forEach(mid=>shareRows.push({id:crypto.randomUUID(),expense_id:eid,member_id:mid,share_amount:Number(e.amount)/(e.sharedBy?.length||1)}));});
+  if(shareRows.length){const {error}=await supabaseClient.from('expense_shares').insert(shareRows);if(error)throw error;}
+  // Replace current-month fund rows
+  for(const table of ['deposits','withdrawals','transfers']){const {error}=await supabaseClient.from(table).delete().eq('month_id',monthRow.id);if(error)throw error;}
+  const deposits=state.fundEntries.filter(x=>x.month===currentMonth()&&x.type==='deposit').map(x=>({id:/^[0-9a-f-]{36}$/i.test(x.id)?x.id:crypto.randomUUID(),month_id:monthRow.id,member_id:x.member,amount:x.amount,deposit_date:x.date,note:x.note||null}));
+  const withdrawals=state.fundEntries.filter(x=>x.month===currentMonth()&&x.type==='withdrawal').map(x=>({id:/^[0-9a-f-]{36}$/i.test(x.id)?x.id:crypto.randomUUID(),month_id:monthRow.id,member_id:x.member,amount:x.amount,withdrawal_date:x.date,reason:x.note||null}));
+  const transfers=state.fundEntries.filter(x=>x.month===currentMonth()&&x.type==='transfer').map(x=>({id:/^[0-9a-f-]{36}$/i.test(x.id)?x.id:crypto.randomUUID(),month_id:monthRow.id,from_member_id:x.fromMember,to_member_id:x.toMember,amount:x.amount,transfer_date:x.date,note:x.note||null}));
+  if(deposits.length){const {error}=await supabaseClient.from('deposits').insert(deposits);if(error)throw error;}if(withdrawals.length){const {error}=await supabaseClient.from('withdrawals').insert(withdrawals);if(error)throw error;}if(transfers.length){const {error}=await supabaseClient.from('transfers').insert(transfers);if(error)throw error;}
+  // Settings/menu/notifications
+  if(isAdmin()){const {error}=await supabaseClient.from('mess_settings').upsert({month_id:monthRow.id,manager_member_id:state.mess.managerId},{onConflict:'month_id'});if(error)throw error;}
+  const {data:existingMenu}=await supabaseClient.from('default_menu').select('id').eq('month_id',monthRow.id).maybeSingle();
+  const menuPayload={month_id:monthRow.id,breakfast:Number(state.mess.defaultMeals.breakfast||0),lunch:Number(state.mess.defaultMeals.lunch||0),dinner:Number(state.mess.defaultMeals.dinner||0)};
+  const {error:mu}=existingMenu?await supabaseClient.from('default_menu').update(menuPayload).eq('id',existingMenu.id):await supabaseClient.from('default_menu').insert(menuPayload);if(mu)throw mu;
+  const notes=state.notifications.filter(n=>n.month===currentMonth()).slice(0,150).map(n=>({id:/^[0-9a-f-]{36}$/i.test(n.id)?n.id:crypto.randomUUID(),month_id:monthRow.id,type:n.action,message:n.details,created_at:new Date(`${n.date}T${(n.time||'00:00').replace(/ AM| PM/,'')||'00:00'}`).toISOString()}));
+  const {error:nd}=await supabaseClient.from('notifications').delete().eq('month_id',monthRow.id);if(nd)throw nd;if(notes.length){const {error}=await supabaseClient.from('notifications').insert(notes);if(error)throw error;}
+  setCloudStatus('Cloud synced',true);
+}
+async function startOnlineApp(){
+  if(!supabaseClient){$('#authScreen').classList.add('show');document.querySelector('.app-shell').style.display='none';$('#authError').textContent='Add your Supabase anon key in index.html before using the online version.';$('#authError').classList.add('show');return;}
+  try{const ok=await ensureOnline();if(!ok)return;await loadCloudState();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);$('#authScreen').classList.add('show');document.querySelector('.app-shell').style.display='none';$('#authError').textContent=err.message||'Unable to connect.';$('#authError').classList.add('show');}
+}
+
+function addNotification(action,details){state.notifications ||= []; state.notifications.unshift({id:crypto.randomUUID(),month:currentMonth(),date:today(),time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),action,details}); state.notifications=state.notifications.slice(0,150);}
 function notifyAndSave(action,details){addNotification(action,details);save();}
 function toast(title,details,type='success'){const stack=$('#toastStack');if(!stack)return;const el=document.createElement('div');el.className='toast '+type;el.innerHTML=`<div class="toast-icon">${type==='error'?'!':type==='info'?'i':'✓'}</div><div><strong>${esc(title)}</strong><p>${esc(details||'')}</p></div><button class="toast-close" aria-label="Close">×</button>`;stack.appendChild(el);requestAnimationFrame(()=>el.classList.add('show'));const remove=()=>{el.classList.remove('show');setTimeout(()=>el.remove(),220)};el.querySelector('.toast-close').onclick=remove;setTimeout(remove,3600);}
 function fmtDelta(oldVal,newVal){return `${money(oldVal)} → ${money(newVal)}`;}
@@ -315,6 +472,8 @@ function render(){
   $('#monthLabel').textContent=monthName(currentMonth());
   renderDashboard();renderMeals();renderExpenses();renderFund();renderMembers();renderReports();renderNotifications();renderSettings();
   if(!$$('.modal-backdrop.open').length) populateForms();
+  setRoleUI();
+  hideEditControlsForRole();
 }
 function renderDashboard(){
   const t=totals(),ms=memberStats(),manager=state.members.find(m=>m.id===state.mess.managerId);
@@ -356,7 +515,7 @@ function renderFund(){
 
 function renderMembers(){
  const ms=memberStats();
- $('#view-members').innerHTML=`<div class="toolbar"><div><div class="eyebrow">People in the mess</div><h3>Members</h3></div><button class="secondary-btn" id="addMemberBtn">+ Add Member</button></div><div class="summary-banner"><strong>Member cost summary</strong><p>Total Deposit includes regular deposits, transfer credits, and Personal Money paid for the mess. Withdrawals and transfer-outs reduce it.</p></div><div class="member-grid">${ms.map(m=>`<div class="member-card"><div class="person"><div class="avatar">${esc(m.name[0])}</div><div><strong>${esc(m.name)}</strong><small>${m.id===state.mess.managerId?'Manager':'Member'}</small></div>${m.id===state.mess.managerId?'':`<button class="danger-btn" style="margin-left:auto" data-delete-member="${m.id}" title="Remove member">Delete</button>`}</div><div class="member-meta"><div><div class="metric-label">Total Deposit</div><div class="metric-value">${money(m.deposit)}</div></div><div><div class="metric-label">Food Cost</div><div class="metric-value">${money(m.foodCost)}</div></div><div><div class="metric-label">Other Cost</div><div class="metric-value">${money(m.otherCost)}</div></div><div><div class="metric-label">Total Cost</div><div class="metric-value">${money(m.totalCost)}</div></div><div><div class="metric-label">Settlement</div><div class="metric-value ${m.balance>=0?'money-positive':'money-negative'}">${m.balance>=0?'+':'-'}${money(Math.abs(m.balance))}</div></div></div></div>`).join('')}</div>`;
+ $('#view-members').innerHTML=`<div class="toolbar"><div><div class="eyebrow">People in the mess</div><h3>Members</h3></div><button class="secondary-btn admin-only" id="addMemberBtn">+ Add Member</button></div><div class="summary-banner"><strong>Member cost summary</strong><p>Total Deposit includes regular deposits, transfer credits, and Personal Money paid for the mess. Withdrawals and transfer-outs reduce it.</p></div><div class="member-grid">${ms.map(m=>`<div class="member-card"><div class="person"><div class="avatar">${esc(m.name[0])}</div><div><strong>${esc(m.name)}</strong><small>${m.id===state.mess.managerId?'Manager':'Member'}</small></div>${m.id===state.mess.managerId?'':`<button class="danger-btn" style="margin-left:auto" data-delete-member="${m.id}" title="Remove member">Delete</button>`}</div><div class="member-meta"><div><div class="metric-label">Total Deposit</div><div class="metric-value">${money(m.deposit)}</div></div><div><div class="metric-label">Food Cost</div><div class="metric-value">${money(m.foodCost)}</div></div><div><div class="metric-label">Other Cost</div><div class="metric-value">${money(m.otherCost)}</div></div><div><div class="metric-label">Total Cost</div><div class="metric-value">${money(m.totalCost)}</div></div><div><div class="metric-label">Settlement</div><div class="metric-value ${m.balance>=0?'money-positive':'money-negative'}">${m.balance>=0?'+':'-'}${money(Math.abs(m.balance))}</div></div></div></div>`).join('')}</div>`;
 }
 function renderReports(){
  const t=totals(), daily=dailyRows();
@@ -389,7 +548,7 @@ function renderNotifications(){
 }
 function renderSettings(){
  const manager=state.members.find(m=>m.id===state.mess.managerId),d=state.mess.defaultMeals;
- $('#view-settings').innerHTML=`<div class="panel"><div class="eyebrow">Workspace</div><h3>Mess Settings</h3><div class="settings-list" style="margin-top:16px"><div class="setting"><div><strong>Mess name</strong><div class="muted">${esc(state.mess.name)}</div></div><button class="secondary-btn" id="renameMess">Edit</button></div><div class="setting"><div><strong>Current manager</strong><div class="muted">${esc(manager?.name||'Not set')}</div></div><button class="secondary-btn" id="settingsManager">Change</button></div><div class="setting"><div><strong>Default meal</strong><div class="muted">Breakfast ${d.breakfast} · Lunch ${d.lunch} · Dinner ${d.dinner}</div></div><button class="secondary-btn" id="editDefaultMeal">Edit</button></div><div class="setting"><div><strong>Calculation model</strong><div class="muted">Meal Cost + selectable Share Cost + Mess Fund + member settlement</div></div><span class="pill green">Active</span></div><div class="setting"><div><strong>Theme</strong><div class="muted">${state.mess.theme==='dark'?'Full Dark':state.mess.theme==='bw'?'Black & White':'White / Light'} theme</div></div><button class="secondary-btn" id="themeToggleSettings">Switch</button></div><div class="setting"><div><strong>Storage</strong><div class="muted">Local browser storage in this prototype</div></div><button class="secondary-btn" id="resetData">Reset</button></div></div></div>`;
+ $('#view-settings').innerHTML=`<div class="panel"><div class="eyebrow">Workspace</div><h3>Mess Settings</h3><div class="settings-list" style="margin-top:16px"><div class="setting"><div><strong>Mess name</strong><div class="muted">${esc(state.mess.name)}</div></div><button class="secondary-btn admin-only" id="renameMess">Edit</button></div><div class="setting"><div><strong>Current manager</strong><div class="muted">${esc(manager?.name||'Not set')}</div></div><button class="secondary-btn admin-only" id="settingsManager">Change</button></div><div class="setting"><div><strong>Default meal</strong><div class="muted">Breakfast ${d.breakfast} · Lunch ${d.lunch} · Dinner ${d.dinner}</div></div><button class="secondary-btn manager-only" id="editDefaultMeal">Edit</button></div><div class="setting"><div><strong>Calculation model</strong><div class="muted">Meal Cost + selectable Share Cost + Mess Fund + member settlement</div></div><span class="pill green">Active</span></div><div class="setting"><div><strong>Theme</strong><div class="muted">${state.mess.theme==='dark'?'Full Dark':state.mess.theme==='bw'?'Black & White':'White / Light'} theme</div></div><button class="secondary-btn" id="themeToggleSettings">Switch</button></div><div class="setting"><div><strong>Storage</strong><div class="muted">Supabase cloud database with role-based access</div></div><button class="secondary-btn admin-only" id="resetData">Reset</button></div></div></div>`;
 }
 function updateShareSummary(){
   const box=$('#shareSummary'); if(!box) return;
@@ -519,7 +678,7 @@ function setup(){
      addNotification('Member deleted',`${m.name} was removed from the mess`);
      recalcAndSave();toast('Member deleted',m.name);return;
    }
-   if(e.target.id==='addMemberBtn'){const n=prompt('Member name');if(n?.trim()){state.members.push({id:'m'+Date.now(),name:n.trim()});addNotification('Member added',`${n.trim()} joined the mess`);save();toast('Member added',n.trim());}}
+   if(e.target.id==='addMemberBtn'){if(!isAdmin())return toast('Admin only','Only the Admin can add members.','error');const n=prompt('Member name');if(n?.trim()){state.members.push({id:crypto.randomUUID(),name:n.trim(),email:null,auth_user_id:null});addNotification('Member added',`${n.trim()} joined the mess`);save();toast('Member added',n.trim());}}
    if(e.target.id==='exportBtn'){const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mess-calculator-data.json';a.click();toast('Data exported','Your current mess data was exported.','info');}
    if(e.target.id==='openDefaultMenu')editDefaultMeal();
    if(e.target.id==='themeToggle'||e.target.id==='themeToggleSettings'){
@@ -549,7 +708,7 @@ function setup(){
    const source=f.get('source')||'fund';
    const old=id?state.expenses.find(x=>x.id===id):null;
    if(id&&!old)return toast('Expense not found','This expense may already have been deleted.','error');
-   const record={id:id||'e'+Date.now()+Math.random().toString(36).slice(2,7),month:f.get('date').slice(0,7),name:f.get('name').trim(),amount,category:f.get('category'),date:f.get('date'),paidBy:f.get('paidBy'),source,sharedBy:shared};
+   const record={id:id||crypto.randomUUID(),month:f.get('date').slice(0,7),name:f.get('name').trim(),amount,category:f.get('category'),date:f.get('date'),paidBy:f.get('paidBy'),source,sharedBy:shared};
    const shareText=expenseShareText(record.amount,record.sharedBy);
    const sharedNames=getSharedNames(record.sharedBy);
    if(id){
@@ -591,7 +750,7 @@ function setup(){
      addNotification('Meals edited',`${dateLabel(date)} · ${oldTotal} → ${total} meals`);
      recalcAndSave(); closeModals(); toast('Meals updated',`${dateLabel(date)} · ${oldTotal} → ${total} meals`); return;
    }
-   state.meals.push({id:'d'+Date.now()+Math.random().toString(36).slice(2,7),month:date.slice(0,7),date,counts});
+   state.meals.push({id:crypto.randomUUID(),month:date.slice(0,7),date,counts});
    addNotification('Meals added',`${dateLabel(date)} · ${total} total meals`);
    recalcAndSave(); closeModals(); toast('Meals added',`${dateLabel(date)} · ${total} total meals`);
  });
@@ -622,7 +781,7 @@ function setup(){
      if(amount>available && !window.confirm(`${memberName(who)} has only ${money(available)} deposit. ${type==='withdrawal'?'Withdraw':'Transfer'} ${money(amount)} anyway? Deposit will become negative.`)) return;
    }
    const record={
-     id:id||'f'+Date.now()+Math.random().toString(36).slice(2,7),
+     id:id||crypto.randomUUID(),
      month:date.slice(0,7), type,
      member:type==='transfer'?'':member,
      fromMember:type==='transfer'?from:'',
@@ -654,11 +813,15 @@ function setup(){
    closeModals();
    toast(`${label} added`,detail);
  });
- $('#newMonthForm').addEventListener('submit',e=>{e.preventDefault();const f=new FormData(e.target),month=f.get('month');if(month===currentMonth())return alert('Choose a different month.');const ms=memberStats();const previousFundBalance=totals().fundBalance;state.mess.openingBalances ||= {};state.mess.openingFundBalances ||= {};state.mess.openingBalances[month]={};ms.forEach(m=>state.mess.openingBalances[month][m.id]=m.balance);state.mess.openingFundBalances[month]=previousFundBalance;state.mess.month=month;addNotification('New month started',`${monthName(month)} opened with mess balance ${money(previousFundBalance)}`);save();closeModals();toast('New month started',`${monthName(month)} opened with ${money(previousFundBalance)} opening mess balance.`,'info');});
- $('#managerForm').addEventListener('submit',e=>{e.preventDefault();state.mess.managerId=$('#managerSelect').value;const m=state.members.find(x=>x.id===state.mess.managerId);addNotification('Manager changed',`${m?.name||'Member'} is now manager`);save();closeModals();toast('Manager changed',`${m?.name||'Member'} is now the manager.`,'info');});
+ $('#newMonthForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target),month=f.get('month');if(month===currentMonth())return alert('Choose a different month.');const ms=memberStats();const previousFundBalance=totals().fundBalance;state.mess.openingBalances ||= {};state.mess.openingFundBalances ||= {};state.mess.openingBalances[month]={};ms.forEach(m=>state.mess.openingBalances[month][m.id]=m.balance);state.mess.openingFundBalances[month]=previousFundBalance;state.mess.month=month;addNotification('New month started',`${monthName(month)} opened with mess balance ${money(previousFundBalance)}`);if(supabaseClient&&isManager()){const {error}=await supabaseClient.from('months').update({is_active:false}).eq('is_active',true);if(error)return toast('New month failed',error.message,'error');const {data:nm,error:ne}=await supabaseClient.from('months').insert({name:monthName(month),start_date:month+'-01',opening_balance:previousFundBalance,is_active:true}).select().single();if(ne)return toast('New month failed',ne.message,'error');if(isAdmin()){const {error:se}=await supabaseClient.from('mess_settings').upsert({month_id:nm.id,manager_member_id:state.mess.managerId},{onConflict:'month_id'});if(se)return toast('Settings failed',se.message,'error');}}save();closeModals();toast('New month started',`${monthName(month)} opened with ${money(previousFundBalance)} opening mess balance.`,'info');});
+ $('#managerForm').addEventListener('submit',async e=>{e.preventDefault();if(!isAdmin())return toast('Admin only','Only the Admin can change the Manager.','error');const oldManager=state.members.find(x=>x.id===state.mess.managerId);state.mess.managerId=$('#managerSelect').value;const m=state.members.find(x=>x.id===state.mess.managerId);try{if(supabaseClient){if(oldManager?.auth_user_id){await supabaseClient.from('user_roles').upsert({user_id:oldManager.auth_user_id,member_id:oldManager.id,role:'member'},{onConflict:'user_id'});}if(m?.auth_user_id){await supabaseClient.from('user_roles').upsert({user_id:m.auth_user_id,member_id:m.id,role:'manager'},{onConflict:'user_id'});}}addNotification('Manager changed',`${m?.name||'Member'} is now manager`);save();closeModals();toast('Manager changed',`${m?.name||'Member'} is now the manager.`,'info');}catch(err){toast('Manager change failed',err.message,'error');}});
  render();
 }
 setup();
+$('#loginForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);$('#authError').classList.remove('show');$('#authLoading').classList.add('show');try{if(!supabaseClient)throw new Error('Supabase anon key is not configured.');const {error}=await supabaseClient.auth.signInWithPassword({email:String(f.get('email')),password:String(f.get('password'))});if(error)throw error;await startOnlineApp();}catch(err){$('#authError').textContent=err.message||'Login failed.';$('#authError').classList.add('show');}finally{$('#authLoading').classList.remove('show');}});
+$('#logoutBtn')?.addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();currentUser=null;currentRole='member';document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');});
+if(supabaseClient){supabaseClient.auth.onAuthStateChange(async (_event,session)=>{currentUser=session?.user||null;if(session){try{await loadCloudState();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);}}else{document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');}});}
+startOnlineApp();
 
 </script>
 </body>

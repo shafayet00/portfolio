@@ -283,6 +283,42 @@ function hideEditControlsForRole(){
   const editableSelectors=['[data-open-modal="expenseModal"]','[data-open-modal="mealModal"]','#fundDepositBtn','#fundWithdrawBtn','#fundTransferBtn','#addMemberBtn','#settingsManager','#renameMess','#editDefaultMeal','#newMonthBtn','#changeManagerBtn','#managerSaveBtn','[data-edit-meal]','[data-edit-expense]','[data-edit-fund]','[data-delete-meal]','[data-delete-expense]','[data-delete-fund]','[data-delete-member]'];
   editableSelectors.forEach(sel=>$$ (sel).forEach(el=>{el.style.display=canEdit()?'':'none';}));
 }
+const MESS_REALTIME_CHANNEL='mess-calculator-live-v1';
+let realtimeChannel=null;
+let realtimeReloadTimer=null;
+let realtimeReloading=false;
+
+async function setupRealtimeSync(){
+  if(!supabaseClient || !currentUser) return;
+  if(realtimeChannel){try{await supabaseClient.removeChannel(realtimeChannel);}catch(_){} realtimeChannel=null;}
+  realtimeChannel=supabaseClient.channel(MESS_REALTIME_CHANNEL,{config:{broadcast:{self:false}}});
+  realtimeChannel.on('broadcast',{event:'mess-update'},payload=>{
+    if(payload?.payload?.sender===currentUser?.id) return;
+    clearTimeout(realtimeReloadTimer);
+    realtimeReloadTimer=setTimeout(async()=>{
+      if(realtimeReloading || !currentUser) return;
+      realtimeReloading=true;
+      try{
+        await loadCloudState();
+        setCloudStatus('Cloud synced',true);
+        toast('Live update','Mess data was updated by another user.','info');
+      }catch(err){
+        console.error('Live update failed',err);
+        setCloudStatus('Sync failed',false);
+      }finally{realtimeReloading=false;}
+    },180);
+  });
+  const status=await realtimeChannel.subscribe();
+  if(status!=='SUBSCRIBED') console.warn('Realtime channel status:',status);
+}
+
+async function broadcastMessUpdate(){
+  if(!realtimeChannel || !currentUser) return;
+  try{
+    await realtimeChannel.send({type:'broadcast',event:'mess-update',payload:{sender:currentUser.id,updatedAt:new Date().toISOString()}});
+  }catch(err){console.warn('Realtime broadcast failed',err);}
+}
+
 async function ensureOnline(){
   if(!supabaseClient) throw new Error('Supabase anon key is not configured in index.html.');
   const {data:{session},error}=await supabaseClient.auth.getSession();
@@ -384,10 +420,11 @@ async function syncCurrentState(){
   const notes=state.notifications.filter(n=>n.month===currentMonth()).slice(0,150).map(n=>({id:/^[0-9a-f-]{36}$/i.test(n.id)?n.id:crypto.randomUUID(),month_id:monthRow.id,type:n.action,message:n.details,created_at:new Date(`${n.date}T${(n.time||'00:00').replace(/ AM| PM/,'')||'00:00'}`).toISOString()}));
   const {error:nd}=await supabaseClient.from('notifications').delete().eq('month_id',monthRow.id);if(nd)throw nd;if(notes.length){const {error}=await supabaseClient.from('notifications').insert(notes);if(error)throw error;}
   setCloudStatus('Cloud synced',true);
+  await broadcastMessUpdate();
 }
 async function startOnlineApp(){
   if(!supabaseClient){$('#authScreen').classList.add('show');document.querySelector('.app-shell').style.display='none';$('#authError').textContent='Add your Supabase anon key in index.html before using the online version.';$('#authError').classList.add('show');return;}
-  try{const ok=await ensureOnline();if(!ok)return;await loadCloudState();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);$('#authScreen').classList.add('show');document.querySelector('.app-shell').style.display='none';$('#authError').textContent=err.message||'Unable to connect.';$('#authError').classList.add('show');}
+  try{const ok=await ensureOnline();if(!ok)return;await loadCloudState();await setupRealtimeSync();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);$('#authScreen').classList.add('show');document.querySelector('.app-shell').style.display='none';$('#authError').textContent=err.message||'Unable to connect.';$('#authError').classList.add('show');}
 }
 
 function addNotification(action,details){state.notifications ||= []; state.notifications.unshift({id:crypto.randomUUID(),month:currentMonth(),date:today(),time:new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}),action,details}); state.notifications=state.notifications.slice(0,150);}
@@ -820,7 +857,7 @@ function setup(){
 setup();
 $('#loginForm')?.addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.target);$('#authError').classList.remove('show');$('#authLoading').classList.add('show');try{if(!supabaseClient)throw new Error('Supabase anon key is not configured.');const {error}=await supabaseClient.auth.signInWithPassword({email:String(f.get('email')),password:String(f.get('password'))});if(error)throw error;await startOnlineApp();}catch(err){$('#authError').textContent=err.message||'Login failed.';$('#authError').classList.add('show');}finally{$('#authLoading').classList.remove('show');}});
 $('#logoutBtn')?.addEventListener('click',async()=>{if(supabaseClient)await supabaseClient.auth.signOut();currentUser=null;currentRole='member';document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');});
-if(supabaseClient){supabaseClient.auth.onAuthStateChange(async (_event,session)=>{currentUser=session?.user||null;if(session){try{await loadCloudState();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);}}else{document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');}});}
+if(supabaseClient){supabaseClient.auth.onAuthStateChange(async (_event,session)=>{currentUser=session?.user||null;if(session){try{await loadCloudState();await setupRealtimeSync();document.querySelector('.app-shell').style.display='flex';$('#authScreen').classList.remove('show');}catch(err){console.error(err);}}else{if(realtimeChannel){try{await supabaseClient.removeChannel(realtimeChannel);}catch(_){ }realtimeChannel=null;}document.querySelector('.app-shell').style.display='none';$('#authScreen').classList.add('show');}});}
 startOnlineApp();
 
 </script>

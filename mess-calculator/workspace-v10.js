@@ -1,7 +1,7 @@
 
 (function(){
   'use strict';
-  const APP_URL='https://shafayet00.github.io/portfolio/mess-calculator/';
+  const APP_URL='https://shafayet00.github.io/Mess-Calculator/';
   const WORKSPACE_KEY='mc-active-workspace';
   let currentWorkspaceId=window.__mcWorkspaceId||null;
   let workspaceMemberships=[];

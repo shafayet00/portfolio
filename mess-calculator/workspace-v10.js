@@ -245,6 +245,22 @@
     });
   }
 
+  document.addEventListener('click',async function(e){
+    const btn=e.target.closest('[data-delete-member]');
+    if(!btn||currentRole!=='manager'||!currentWorkspaceId)return;
+    e.preventDefault();e.stopPropagation();e.stopImmediatePropagation();
+    const uid=btn.dataset.deleteMember;
+    const target=(state.members||[]).find(function(m){return m.id===uid});
+    if(!target)return;
+    if(!confirm('Remove '+target.name+' from this mess?'))return;
+    const r=await supabaseClient.rpc('mc_remove_member',{p_workspace_id:currentWorkspaceId,p_user_id:target.auth_user_id||''});
+    if(r.error){toast('Remove failed',r.error.message,'error');return}
+    state.members=(state.members||[]).filter(function(m){return m.id!==uid});
+    state.meals=(state.meals||[]).map(function(x){if(x.counts)delete x.counts[uid];return x});
+    addNotification('Member removed',target.name+' was removed from this mess');
+    save();toast('Member removed',target.name+' was removed from the mess','info');
+  },true);
+
   if(typeof supabaseClient!=='undefined'&&supabaseClient){
     supabaseClient.auth.onAuthStateChange(function(event,session){
       currentUser=session&&session.user?session.user:null;

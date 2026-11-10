@@ -70,6 +70,7 @@
     injectUI();
     workspaceMemberships=await getMemberships();
     q('#mcwUser').textContent=currentUser&&currentUser.email?currentUser.email:'';
+    q('#authScreen').classList.remove('show');
     q('#mcWorkspaceScreen').classList.add('show');
     q('.app-shell').style.display='none';
     const unique=Array.from(new Map(workspaceMemberships.filter(x=>x.workspace).map(x=>[x.workspace_id,x])).values());
@@ -124,6 +125,7 @@
     state.mess.name=membership.workspace&&membership.workspace.name?membership.workspace.name:state.mess.name;
     localStorage.setItem(KEY+'-'+id,JSON.stringify(state));
     localStorage.setItem(WORKSPACE_KEY,id);
+    q('#authScreen').classList.remove('show');
     q('#mcWorkspaceScreen').classList.remove('show');
     q('.app-shell').style.display='flex';
     setCloudStatus('Cloud synced',true);
@@ -147,6 +149,7 @@
     setCloudStatus('Cloud synced',true);
   }
 
+  window.syncCurrentState=syncCurrentState;
   window.save=function(){
     const k=currentWorkspaceId?KEY+'-'+currentWorkspaceId:KEY;
     localStorage.setItem(k,JSON.stringify(state));

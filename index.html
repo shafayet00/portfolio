@@ -191,6 +191,25 @@ footer{padding:28px 0;border-top:1px solid var(--line);color:var(--muted);font-s
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
 
+
+/* Featured project */
+.project-feature{position:relative;display:grid;grid-template-columns:76px 1fr;overflow:hidden;background:var(--surface);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow);transition:transform .35s ease,border-color .35s ease,box-shadow .35s ease}
+.project-feature:hover{transform:translateY(-6px);border-color:var(--line-strong)}
+.project-number{padding:28px 20px;border-right:1px solid var(--line);color:var(--muted);font-size:13px;font-weight:900;letter-spacing:2px}
+.project-main{padding:30px 32px 32px}
+.project-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px}
+.project-status{display:inline-flex;padding:6px 9px;border:1px solid var(--line-strong);border-radius:999px;color:var(--muted);font-size:9px;font-weight:900;letter-spacing:1.4px}
+.project-top h3{margin:13px 0 3px;font-size:30px;line-height:1.1;letter-spacing:-1px}
+.project-tagline{color:var(--muted);font-size:13px}
+.project-icon{width:58px;height:58px;flex:0 0 58px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:17px;background:var(--surface-2);font-weight:900}
+.project-description{max-width:820px;margin:24px 0 20px;color:var(--muted);font-size:15px;line-height:1.75}
+.project-features{display:flex;flex-wrap:wrap;gap:8px}
+.project-features span{padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);color:var(--muted);font-size:10px;font-weight:750}
+.project-tech{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.project-tech span{color:var(--text);font-size:10px;font-weight:800;padding:6px 9px;border-radius:8px;background:var(--soft)}
+.project-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:24px}
+@media(max-width:620px){.project-feature{grid-template-columns:1fr}.project-number{border-right:0;border-bottom:1px solid var(--line);padding:13px 20px}.project-main{padding:23px}.project-top h3{font-size:26px}.project-icon{width:50px;height:50px;flex-basis:50px}}
+
 /* Updated navigation + contact/profile system */
 .theme-toggle{
   flex:0 0 auto;
@@ -476,14 +495,29 @@ footer{padding:28px 0;border-top:1px solid var(--line);color:var(--muted);font-s
 <section id="projects" class="reveal">
   <div class="container">
     <div class="section-head">
-      <div><div class="section-label">Projects</div><h2 class="section-title">Projects</h2></div>
-      <p class="section-copy">This section is ready for future work.</p>
+      <div><div class="section-label">Projects</div><h2 class="section-title">Featured work</h2></div>
+      <p class="section-copy">A real-world project built to solve everyday shared-living problems with a simple digital workflow.</p>
     </div>
-    <div class="projects-empty">
-      <div class="projects-empty-inner">
-        <div class="mark">+</div>
-        <h3>Projects coming soon</h3>
-        <p>I haven't added projects yet. This section will be updated as I build and publish new work.</p>
+    <div class="project-feature">
+      <div class="project-number">01</div>
+      <div class="project-main">
+        <div class="project-top">
+          <div>
+            <span class="project-status">LIVE PROJECT</span>
+            <h3>Mess Calculator</h3>
+            <p class="project-tagline">Smart mess, meal & expense management system</p>
+          </div>
+          <div class="project-icon">MC</div>
+        </div>
+        <p class="project-description">A web and Android application for university students and friends living in a shared mess. It manages daily meals, member deposits, food expenses, other costs, balances and monthly settlements in one place.</p>
+        <div class="project-features">
+          <span>🍚 Meal Tracking</span><span>💰 Mess Fund</span><span>💳 Expense Management</span><span>👥 Member Management</span><span>📊 Monthly Accounting</span><span>📄 PDF Reports</span><span>☁️ Cloud Sync</span><span>📱 Android App</span>
+        </div>
+        <div class="project-tech"><span>HTML</span><span>CSS</span><span>JavaScript</span><span>Supabase</span><span>Android</span></div>
+        <div class="project-actions">
+          <a class="btn primary" href="https://shafayet00.github.io/Mess-Calculator/" target="_blank" rel="noopener">Live Demo ↗</a>
+          <a class="btn" href="https://github.com/shafayet00/Mess-Calculator" target="_blank" rel="noopener">View Source ↗</a>
+        </div>
       </div>
     </div>
   </div>
